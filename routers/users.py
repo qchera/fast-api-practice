@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from ..services.redis_auth_service import RedisAuthService
 from ..core.security import oauth2_scheme
 from ..utils import decode_access_token
-from ..database.models import UserCreate
+from ..database.models import UserCreate, User
 from ..dependencies import UserServiceDep, get_access_token_data, get_redis_auth_service
 
 router = APIRouter(tags=["Users"])
@@ -20,7 +20,7 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
     return await users_service.token(form_data.username, form_data.password)
 
 @router.get("/decode")
-async def decode_token(token: Annotated[str, Depends(oauth2_scheme)], users_service: UserServiceDep):
+async def decode_token(token: Annotated[str, Depends(oauth2_scheme)], users_service: UserServiceDep) -> User:
     data = decode_access_token(token)
     if data is None:
         raise HTTPException(

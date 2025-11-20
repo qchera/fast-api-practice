@@ -76,3 +76,12 @@ class UserRead(SQLModel):
     username: str
     full_name: str
     email: EmailStr
+
+class ShipmentRead(SQLModel):
+    id: UUID
+    product: str
+    progress: ProgressStatus
+    estimated_delivery: datetime
+    user_id: UUID
+
+    user: UserRead | None = None

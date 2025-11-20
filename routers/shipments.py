@@ -1,22 +1,26 @@
+from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, status
 
-from ..database.models import Shipment, ShipmentCreate, ShipmentUpdate
+from ..database.models import Shipment, ShipmentCreate, ShipmentUpdate, ShipmentRead
 from ..dependencies import ShipmentServiceDep, UserDep
 
 router = APIRouter(prefix="/shipments", tags=["Shipments"])
 
-@router.get("/", response_model=list[Shipment])
+@router.get("/", response_model=List[Shipment])
 async def get_all_shipments(current_user: UserDep,
-                            shipment_service: ShipmentServiceDep) -> list[Shipment]:
+                            shipment_service: ShipmentServiceDep) -> List[Shipment]:
     return await shipment_service.get_all_shipments()
 
-@router.get("/my", status_code=status.HTTP_200_OK, response_model=list[Shipment])
-async def get_my_shipments(current_user: UserDep,
-                           shipment_service: ShipmentServiceDep) -> list[Shipment]:
-    all_shipments = await shipment_service.get_shipments_by_user_id(current_user.id)
-    return all_shipments
+
+@router.get("/my", response_model=List[ShipmentRead])
+async def get_my_shipments(
+        current_user: UserDep,
+        service: ShipmentServiceDep
+):
+    shipments = await service.get_shipments_by_user_id(current_user.id)
+    return shipments
 
 @router.get("/{shipment_id}", response_model=Shipment)
 async def get_shipment_by_id(shipment_id: UUID,

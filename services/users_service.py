@@ -1,5 +1,6 @@
 from datetime import timedelta
 from typing import Optional
+from uuid import UUID
 
 from passlib.context import CryptContext
 from fastapi import status, HTTPException
@@ -70,3 +71,12 @@ class UserService():
         )
 
         return token
+
+    async def find_by_id(self, id: UUID) -> User:
+        user: User | None = await self.session.get(User, id)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        return user

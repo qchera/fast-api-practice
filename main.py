@@ -12,12 +12,10 @@ from .database.session import create_tables
 async def lifespan(app: FastAPI):
     await create_tables()
     await init_redis()
-    print("Redis initialized")
 
     yield
 
     await close_redis()
-    print("Redis closed")
 
 app = FastAPI(lifespan = lifespan)
 

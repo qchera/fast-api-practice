@@ -1,3 +1,4 @@
+from typing import List
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -23,7 +24,7 @@ class ShipmentService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Shipment id {shipment_id} does not exist")
         return shipment
 
-    async def get_shipments_by_user_id(self, user_id):
+    async def get_shipments_by_user_id(self, user_id) -> List[Shipment]:
         shipments = await self.session.execute(select(Shipment).where(Shipment.user_id == user_id))
         shipments_list = shipments.scalars().all()
         return list(shipments_list)
@@ -55,8 +56,9 @@ class ShipmentService:
         await self.session.commit()
 
     async def create_shipment(self, shipment_data: ShipmentCreate, user_id: UUID) -> Shipment:
-        shipment_data.user_id = user_id
-        shipment = Shipment.model_validate(shipment_data)
+        clean_data = shipment_data.model_dump(exclude_none=True)
+        clean_data['user_id'] = user_id
+        shipment = Shipment.model_validate(clean_data)
         self.session.add(shipment)
         await self.session.commit()
         await self.session.refresh(shipment)
