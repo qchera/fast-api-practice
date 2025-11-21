@@ -4,7 +4,7 @@ from enum import Enum
 from uuid import UUID
 
 from pydantic import EmailStr
-from sqlalchemy import Column
+from sqlalchemy import Column, DateTime
 from sqlalchemy.dialects import postgresql
 from sqlmodel import Relationship
 from sqlmodel import SQLModel, Field
@@ -26,7 +26,10 @@ class Shipment(SQLModel, table=True):
     )
     product: str = Field(nullable=False)
     progress: ProgressStatus = Field(nullable=False)
-    estimated_delivery: datetime = Field(nullable=False)
+    estimated_delivery: datetime = Field(sa_column=Column(
+                                             DateTime(timezone=True),
+                                             nullable=False
+                                         ))
 
     user_id: UUID = Field(foreign_key="user.id", nullable=False)
     user: "User" = Relationship(
@@ -37,7 +40,7 @@ class Shipment(SQLModel, table=True):
 class ShipmentCreate(SQLModel):
     product: str = Field(nullable=False)
     progress: ProgressStatus = Field(default=ProgressStatus.PLACED)
-    estimated_delivery: datetime = Field(default_factory=lambda: datetime.now() + timedelta(days=7))
+    estimated_delivery: datetime | None = Field(default_factory=lambda: datetime.now() + timedelta(days=7))
 
     user_id: UUID = Field(default=None)
 

@@ -55,7 +55,7 @@ class UserService():
             )
         if not verify_password(password, user.hashed_password):
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Incorrect password"
             )
 
