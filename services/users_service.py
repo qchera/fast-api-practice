@@ -6,10 +6,10 @@ from passlib.context import CryptContext
 from fastapi import status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from ..utils import generate_access_token
-from ..database.models import UserCreate, User, UserRead
-
+from ..database.models import UserCreate, User, UserPlain, Shipment
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -73,7 +73,24 @@ class UserService():
         return token
 
     async def find_by_id(self, id: UUID) -> User:
-        user: User | None = await self.session.get(User, id)
+        query = select(User).where(User.id == id).options(
+            selectinload(User.purchases).selectinload(Shipment.seller),
+            selectinload(User.sales).selectinload(Shipment.buyer)
+        )
+
+        result = await self.session.execute(query)
+        user = result.scalars().one_or_none()
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        return user
+
+    async def find_by_username(self, username: str) -> User:
+        find_by_email = select(User).where(User.username == username)
+        user = (await self.session.execute(find_by_email)).scalars().one_or_none()
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

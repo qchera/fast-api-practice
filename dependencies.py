@@ -8,7 +8,7 @@ from typing import Annotated, Optional
 
 from .services.redis_auth_service import RedisAuthService
 from .core import redis
-from .database.models import User, UserRead
+from .database.models import User, UserPlain
 from .utils import decode_access_token
 from .core.security import oauth2_scheme
 from .database.session import get_session
@@ -60,4 +60,4 @@ def get_user_service(session: SessionDep) -> UserService:
 
 ShipmentServiceDep = Annotated[ShipmentService, Depends(get_shipment_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
-UserDep = Annotated[UserRead, Depends(get_logged_in_user)]
+UserDep = Annotated[UserPlain, Depends(get_logged_in_user)]

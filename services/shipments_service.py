@@ -6,18 +6,18 @@ from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.models import Shipment, ProgressStatus, ShipmentCreate, ShipmentUpdate
+from ..database.models import Shipment, ProgressStatus, ShipmentCreate, ShipmentSummary, ShipmentCreateSimple, User, ShipmentRead
 
 class ShipmentService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_all_shipments(self) -> list[Shipment]:
+    async def get_all_shipments(self) -> list[ShipmentRead]:
         result = await self.session.execute(select(Shipment))
         shipments = result.scalars().all()
         if not shipments:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There are no shipments found")
-        return list(shipments)
+        return [ShipmentRead.model_validate(shipment) for shipment in shipments]
 
     async def get_shipment_by_id(self, shipment_id: UUID) -> Shipment:
         shipment: Shipment | None = await self.session.get(Shipment, shipment_id)
@@ -56,39 +56,40 @@ class ShipmentService:
 
         await self.session.commit()
 
-    async def create_shipment(self, shipment_data: ShipmentCreate, user_id: UUID) -> Shipment:
-        print(shipment_data)
-        shipment_data = self._validate_shipment_create(shipment_data)
-        clean_data = shipment_data.model_dump()
-        clean_data['user_id'] = user_id
+    async def create_shipment(self, shipment_data_simple: ShipmentCreateSimple, user_id: UUID) -> ShipmentSummary:
+        shipment_data: ShipmentCreate = await self.map_simple_to_create(shipment_data_simple, user_id)
+        shipment_data_valid = self._validate_shipment_create(shipment_data)
+        clean_data = shipment_data_valid.model_dump()
         shipment = Shipment.model_validate(clean_data)
         self.session.add(shipment)
         await self.session.commit()
         await self.session.refresh(shipment)
-        return shipment
-
-    async def update_shipment(
-        self, shipment_id: UUID, shipment_update: ShipmentUpdate
-    ) -> Shipment:
-        update_data = shipment_update.model_dump(exclude_unset=True)
-        if not update_data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Shipment data is invalid or empty"
-            )
-
-        shipment = await self.get_shipment_by_id(shipment_id)
-
-        shipment.sqlmodel_update(update_data)
-        self.session.add(shipment)
-        await self.session.commit()
-        await self.session.refresh(shipment)
-        return shipment
+        return ShipmentSummary.model_validate(shipment)
 
     async def delete_shipment(self, shipment_id: UUID) -> None:
         shipment = await self.get_shipment_by_id(shipment_id)
         await self.session.delete(shipment)
         await self.session.commit()
+
+    '''
+        async def update_shipment(
+            self, shipment_id: UUID, shipment_update: ShipmentSummary
+        ) -> Shipment:
+            update_data = shipment_update.model_dump(exclude_unset=True)
+            if not update_data:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Shipment data is invalid or empty"
+                )
+
+            shipment = await self.get_shipment_by_id(shipment_id)
+
+            shipment.sqlmodel_update(update_data)
+            self.session.add(shipment)
+            await self.session.commit()
+            await self.session.refresh(shipment)
+            return shipment
+    '''
 
     def _validate_shipment_create(self, shipment_data: ShipmentCreate) -> ShipmentCreate:
         valid_shipment = shipment_data.model_dump(exclude_none=True)
@@ -111,3 +112,22 @@ class ShipmentService:
             )
 
         return ShipmentCreate.model_validate(valid_shipment)
+
+    async def map_simple_to_create(self, shipment_data: ShipmentCreateSimple, seller_id: UUID) -> ShipmentCreate:
+        return ShipmentCreate(
+            product=shipment_data.product,
+            progress=shipment_data.progress,
+            estimated_delivery=shipment_data.estimated_delivery,
+            buyer_id=await self._find_user_id_by_username(shipment_data.buyer_username),
+            seller_id=seller_id,
+        )
+
+    async def _find_user_id_by_username(self, username: str) -> UUID:
+        find_by_username = select(User.id).where(User.username == username)
+        id = (await self.session.execute(find_by_username)).scalars().one_or_none()
+        if id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with username: '{username}' not found"
+            )
+        return id

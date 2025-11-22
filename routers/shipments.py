@@ -1,16 +1,16 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, HTTPException
 
-from ..database.models import Shipment, ShipmentCreate, ShipmentUpdate, ShipmentRead
+from ..database.models import Shipment, ShipmentSummary, ShipmentRead, ShipmentCreateSimple
 from ..dependencies import ShipmentServiceDep, UserDep
 
 router = APIRouter(prefix="/shipments", tags=["Shipments"])
 
-@router.get("/", response_model=List[Shipment])
+@router.get("/", response_model=List[ShipmentRead])
 async def get_all_shipments(current_user: UserDep,
-                            shipment_service: ShipmentServiceDep) -> List[Shipment]:
+                            shipment_service: ShipmentServiceDep) -> List[ShipmentRead]:
     return await shipment_service.get_all_shipments()
 
 
@@ -32,17 +32,23 @@ async def fill_table(current_user: UserDep,
                      shipment_service: ShipmentServiceDep) -> None:
     await shipment_service.fill_table(current_user.id)
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=Shipment)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=ShipmentSummary)
 async def create_shipment(current_user: UserDep,
-                          shipment_data: ShipmentCreate,
-                          shipment_service: ShipmentServiceDep) -> Shipment:
-    return await shipment_service.create_shipment(shipment_data, current_user.id)
-
+                          shipment_data_simple: ShipmentCreateSimple,
+                          shipment_service: ShipmentServiceDep) -> ShipmentSummary:
+    if current_user.username == shipment_data_simple.buyer_username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Buyer and seller cannot be the same user"
+        )
+    return await shipment_service.create_shipment(shipment_data_simple, current_user.id)
+'''
 @router.put("/{shipment_id}", response_model=Shipment)
 async def update_shipment(shipment_id: UUID,
-                          shipment_update: ShipmentUpdate,
+                          shipment_update: ShipmentSummary,
                           shipment_service: ShipmentServiceDep) -> Shipment:
     return await shipment_service.update_shipment(shipment_id, shipment_update)
+'''
 
 @router.delete("/{shipment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_shipment(shipment_id: UUID,

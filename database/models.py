@@ -31,23 +31,54 @@ class Shipment(SQLModel, table=True):
                                              nullable=False
                                          ))
 
-    user_id: UUID = Field(foreign_key="user.id", nullable=False)
-    user: "User" = Relationship(
-        back_populates="shipments",
-        sa_relationship_kwargs={"lazy": "joined"}
+    buyer_id: UUID = Field(foreign_key="user.id", nullable=False)
+    buyer: "User" = Relationship(
+        back_populates="purchases",
+        sa_relationship_kwargs={
+            "foreign_keys": "[Shipment.buyer_id]",
+            "lazy": "selectin"
+        }
     )
+
+    seller_id: UUID = Field(foreign_key="user.id", nullable=False)
+    seller: "User" = Relationship(
+        back_populates="sales",
+        sa_relationship_kwargs={
+            "foreign_keys": "[Shipment.seller_id]",
+            "lazy": "selectin"
+        }
+    )
+
+    @property
+    def buyer_username(self) -> str | None:
+        return self.buyer.username if self.buyer else None
+
+    @property
+    def seller_username(self) -> str | None:
+        return self.seller.username if self.seller else None
 
 class ShipmentCreate(SQLModel):
     product: str = Field(nullable=False)
     progress: ProgressStatus = Field(default=ProgressStatus.PLACED)
     estimated_delivery: datetime | None = Field(default_factory=lambda: datetime.now() + timedelta(days=7))
 
-    user_id: UUID = Field(default=None)
+    buyer_id: UUID = Field(default=None)
+    seller_id: UUID = Field(default=None)
 
-class ShipmentUpdate(SQLModel):
+class ShipmentCreateSimple(SQLModel):
+    product: str = Field(nullable=False)
+    progress: ProgressStatus = Field(default=ProgressStatus.PLACED)
+    estimated_delivery: datetime | None = Field(default_factory=lambda: datetime.now() + timedelta(days=7))
+
+    buyer_username: str = Field(nullable=False)
+
+class ShipmentSummary(SQLModel):
     product: str | None = Field(default=None)
     progress: ProgressStatus | None = Field(default=None)
     estimated_delivery: datetime | None = Field(default=None)
+
+    buyer_username: str = Field(nullable=False)
+    seller_username: str = Field(nullable=False)
 
 class User(SQLModel,  table=True):
     __tablename__ = "user"
@@ -64,9 +95,20 @@ class User(SQLModel,  table=True):
     email: EmailStr = Field(nullable=False, unique=True)
     hashed_password: str = Field(nullable=False)
 
-    shipments: list[Shipment] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"lazy": "selectin"}
+    purchases: list["Shipment"] = Relationship(
+        back_populates="buyer",
+        sa_relationship_kwargs={
+            "primaryjoin": "User.id==Shipment.buyer_id",
+            "lazy": "selectin"
+        }
+    )
+
+    sales: list["Shipment"] = Relationship(
+        back_populates="seller",
+        sa_relationship_kwargs={
+            "primaryjoin": "User.id==Shipment.seller_id",
+            "lazy": "selectin"
+        }
     )
 
 class UserCreate(SQLModel):
@@ -75,16 +117,25 @@ class UserCreate(SQLModel):
     email: EmailStr = Field(nullable=False)
     password: str = Field(nullable=False)
 
-class UserRead(SQLModel):
+class UserPlain(SQLModel):
     username: str
     full_name: str
     email: EmailStr
+
+class UserRead(SQLModel):
+    id: UUID
+    username: str
+    full_name: str
+    email: EmailStr
+
+    purchases: list[ShipmentSummary]
+    sales: list[ShipmentSummary]
 
 class ShipmentRead(SQLModel):
     id: UUID
     product: str
     progress: ProgressStatus
     estimated_delivery: datetime
-    user_id: UUID
 
-    user: UserRead | None = None
+    buyer: UserPlain | None = None
+    seller: UserPlain | None = None
