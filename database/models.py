@@ -14,6 +14,11 @@ class ProgressStatus(str, Enum):
     IN_TRANSIT = "in transit"
     SHIPPED = "shipped"
 
+class ApprovalStatus(str, Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
 class Shipment(SQLModel, table=True):
     __tablename__ = "shipment"
 
@@ -49,6 +54,8 @@ class Shipment(SQLModel, table=True):
         }
     )
 
+    approval_status: ApprovalStatus = Field(default=ApprovalStatus.PENDING)
+
     @property
     def buyer_username(self) -> str | None:
         return self.buyer.username if self.buyer else None
@@ -73,12 +80,15 @@ class ShipmentCreateSimple(SQLModel):
     buyer_username: str = Field(nullable=False)
 
 class ShipmentSummary(SQLModel):
+    id: UUID = Field(nullable=False)
     product: str | None = Field(default=None)
     progress: ProgressStatus | None = Field(default=None)
     estimated_delivery: datetime | None = Field(default=None)
 
     buyer_username: str = Field(nullable=False)
     seller_username: str = Field(nullable=False)
+
+    approval_status: ApprovalStatus = Field(default=ApprovalStatus.PENDING)
 
 class User(SQLModel,  table=True):
     __tablename__ = "user"
@@ -139,3 +149,5 @@ class ShipmentRead(SQLModel):
 
     buyer: UserPlain | None = None
     seller: UserPlain | None = None
+
+    approval_status: ApprovalStatus

@@ -6,18 +6,18 @@ from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.models import Shipment, ProgressStatus, ShipmentCreate, ShipmentSummary, ShipmentCreateSimple, User, ShipmentRead
+from ..database.models import Shipment, ProgressStatus, ShipmentCreate, ShipmentSummary, ShipmentCreateSimple, User, ApprovalStatus
 
 class ShipmentService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_all_shipments(self) -> list[ShipmentRead]:
+    async def get_all_shipments(self) -> list[ShipmentSummary]:
         result = await self.session.execute(select(Shipment))
         shipments = result.scalars().all()
         if not shipments:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There are no shipments found")
-        return [ShipmentRead.model_validate(shipment) for shipment in shipments]
+        return [ShipmentSummary.model_validate(shipment) for shipment in shipments]
 
     async def get_shipment_by_id(self, shipment_id: UUID) -> Shipment:
         shipment: Shipment | None = await self.session.get(Shipment, shipment_id)
@@ -81,15 +81,37 @@ class ShipmentService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Shipment data is invalid or empty"
                 )
-
+    
             shipment = await self.get_shipment_by_id(shipment_id)
-
+    
             shipment.sqlmodel_update(update_data)
             self.session.add(shipment)
             await self.session.commit()
             await self.session.refresh(shipment)
             return shipment
     '''
+
+    async def update_shipment_approval_status(self,
+                                              shipment_id: UUID,
+                                              approval_status: ApprovalStatus) -> ShipmentSummary:
+        if approval_status == ApprovalStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot update approval status to 'pending'"
+            )
+        shipment = await self.session.get(Shipment, shipment_id)
+
+        if not shipment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Shipment with id '{shipment_id}' not found"
+            )
+
+        shipment.approval_status = approval_status
+        self.session.add(shipment)
+        await self.session.commit()
+        await self.session.refresh(shipment)
+        return ShipmentSummary.model_validate(shipment)
 
     def _validate_shipment_create(self, shipment_data: ShipmentCreate) -> ShipmentCreate:
         valid_shipment = shipment_data.model_dump(exclude_none=True)
