@@ -1,11 +1,14 @@
-from typing import Annotated, Any, Coroutine
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, status, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from ..utils.socket_manager import socket_manager
 from ..services.redis_auth_service import RedisAuthService
 from ..core.security import oauth2_scheme
-from ..utils import decode_access_token
+from ..utils.utils import decode_access_token
 from ..database.models import UserCreate, UserRead
 from ..dependencies import UserServiceDep, get_access_token_data, get_redis_auth_service
 
@@ -34,3 +37,12 @@ async def decode_token(token: Annotated[str, Depends(oauth2_scheme)], users_serv
 @router.get("/logout")
 async def logout(token_data: Annotated[dict, Depends(get_access_token_data)], redis_auth_service: Annotated[RedisAuthService, Depends(get_redis_auth_service)]):
     await redis_auth_service.revoke_token(token_data)
+
+@router.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: UUID):
+    await socket_manager.connect(websocket, user_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        socket_manager.disconnect(websocket, user_id)

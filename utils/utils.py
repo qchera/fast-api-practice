@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 
 import jwt
 
-from .config import security_settings
+from ..config import security_settings
 
 
 def generate_access_token(

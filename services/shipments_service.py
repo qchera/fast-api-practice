@@ -6,11 +6,13 @@ from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .socket_message_service import SocketMessageService
 from ..database.models import Shipment, ProgressStatus, ShipmentCreate, ShipmentSummary, ShipmentCreateSimple, User, ApprovalStatus
 
 class ShipmentService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, socket_service: SocketMessageService):
         self.session = session
+        self.socket_service = socket_service
 
     async def get_all_shipments(self) -> list[ShipmentSummary]:
         result = await self.session.execute(select(Shipment))
@@ -30,32 +32,6 @@ class ShipmentService:
         shipments_list = shipments.scalars().all()
         return list(shipments_list)
 
-    async def fill_table(self, user_id: UUID) -> None:
-        items = [
-            ("Apple iPhone 13", ProgressStatus.PLACED),
-            ("Samsung Galaxy S21", ProgressStatus.IN_TRANSIT),
-            ("Canon EOS 5D Mark IV", ProgressStatus.SHIPPED),
-            ("Microsoft Xbox Series X", ProgressStatus.IN_TRANSIT),
-            ("DJI Mavic Air 2 Drone", ProgressStatus.SHIPPED),
-            ("ASUS ROG Zephyrus G14 laptop", ProgressStatus.PLACED),
-            ("Nintendo Switch OLED Model", ProgressStatus.IN_TRANSIT),
-            ("Google Pixel 6 Pro", ProgressStatus.SHIPPED),
-            ("Bose QuietComfort 45 Headphones", ProgressStatus.PLACED),
-            ("Sony PlayStation 5", ProgressStatus.IN_TRANSIT),
-            ("Apple AirPods Pro 2", ProgressStatus.SHIPPED),
-            ("Samsung Odyssey G9 Gaming Monitor", ProgressStatus.PLACED),
-            ("ASUS RT-AC68U Wi-Fi Router", ProgressStatus.IN_TRANSIT),
-            ("Logitech G502 Gaming Mouse", ProgressStatus.SHIPPED),
-            ("Nintendo Switch Pro Controller", ProgressStatus.PLACED),
-        ]
-
-        for product, progress in items:
-            shipment_create = ShipmentCreate(product=product, progress=progress, user_id=user_id)
-            shipment = Shipment.model_validate(shipment_create)
-            self.session.add(shipment)
-
-        await self.session.commit()
-
     async def create_shipment(self, shipment_data_simple: ShipmentCreateSimple, user_id: UUID) -> ShipmentSummary:
         shipment_data: ShipmentCreate = await self.map_simple_to_create(shipment_data_simple, user_id)
         shipment_data_valid = self._validate_shipment_create(shipment_data)
@@ -64,7 +40,9 @@ class ShipmentService:
         self.session.add(shipment)
         await self.session.commit()
         await self.session.refresh(shipment)
-        return ShipmentSummary.model_validate(shipment)
+        shipment_summary: ShipmentSummary = ShipmentSummary.model_validate(shipment)
+        await self.socket_service.add_pending_purchase_message(shipment.buyer_id, shipment_summary)
+        return shipment_summary
 
     async def delete_shipment(self, shipment_id: UUID) -> None:
         shipment = await self.get_shipment_by_id(shipment_id)
@@ -111,7 +89,9 @@ class ShipmentService:
         self.session.add(shipment)
         await self.session.commit()
         await self.session.refresh(shipment)
-        return ShipmentSummary.model_validate(shipment)
+        shipment_summary: ShipmentSummary = ShipmentSummary.model_validate(shipment)
+        await self.socket_service.update_sale_message(shipment.seller_id, shipment_summary)
+        return shipment_summary
 
     def _validate_shipment_create(self, shipment_data: ShipmentCreate) -> ShipmentCreate:
         valid_shipment = shipment_data.model_dump(exclude_none=True)

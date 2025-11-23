@@ -1,5 +1,3 @@
-from datetime import timedelta
-from typing import Optional
 from uuid import UUID
 
 from passlib.context import CryptContext
@@ -8,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..utils import generate_access_token
-from ..database.models import UserCreate, User, UserPlain, Shipment
+from ..utils.utils import generate_access_token
+from ..database.models import UserCreate, User, Shipment
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
