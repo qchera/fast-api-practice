@@ -3,7 +3,7 @@ from uuid import UUID
 from passlib.context import CryptContext
 from fastapi import status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 
 from ..utils.utils import generate_access_token
@@ -43,10 +43,12 @@ class UserService():
         await self.session.refresh(user)
         return str(user.id)
 
-    async def token(self, email, password) -> str:
-        find_by_email = select(User).where(User.email == email)
-        user = (await self.session.execute(find_by_email)).scalars().one_or_none()
+    async def token(self, login, password) -> str:
+        find_by_email_or_username = select(User).where(or_(User.email == login, User.username == login))
+        user = (await self.session.execute(find_by_email_or_username)).scalars().one_or_none()
+        print(user, login)
         if user is None:
+
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
@@ -62,7 +64,7 @@ class UserService():
                 "user": {
                     "id": str(user.id),
                     "username": user.username,
-                    "full_name": user.full_name,
+                    "email": user.email,
                 }
             },
             #expiry=timedelta(seconds=15)
