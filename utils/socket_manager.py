@@ -25,6 +25,5 @@ class SocketConnectionManager:
         if self.connections.get(user_id):
             for websocket in self.connections[user_id]:
                 await websocket.send_json(message)
-                print(message, 'sent')
 
 socket_manager = SocketConnectionManager()

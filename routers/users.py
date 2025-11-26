@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from ..services.socket_message_service import socket_message_service
 from ..core.security import oauth2_scheme
 from ..database.schemas.user import UserCreate, UserRead
 from ..dependencies import UserServiceDep, get_access_token_data, get_redis_auth_service
@@ -44,11 +45,22 @@ async def logout(
     await redis_auth_service.revoke_token(token_data)
 
 
-@router.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: UUID):
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, token: str):
+    user_id: UUID
+    try:
+        payload = decode_access_token(token)
+        user_id = UUID(payload["user"]["id"])
+    except Exception as e:
+        print("WS Auth error", e)
+        await websocket.close(1008)
+        return
     await socket_manager.connect(websocket, user_id)
     try:
         while True:
-            await websocket.receive_text()
+            text: str = await websocket.receive_text()
+            if text == 'PING':
+                print(text)
+                await socket_message_service.heartbeat(user_id)
     except WebSocketDisconnect:
         socket_manager.disconnect(websocket, user_id)

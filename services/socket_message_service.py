@@ -24,4 +24,10 @@ class SocketMessageService:
         }
         await self.manager.send_message(buyer_id, message)
 
+    async def heartbeat(self, user_id: UUID) -> None:
+        message = {
+            "type": "PONG"
+        }
+        await self.manager.send_message(user_id, message)
+
 socket_message_service = SocketMessageService()
