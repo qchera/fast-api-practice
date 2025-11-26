@@ -2,17 +2,23 @@ from datetime import datetime, timezone
 from typing import List
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..database.schemas.user import UserBase
+from .email_service import EmailService
 from .socket_message_service import SocketMessageService
-from ..database.models import Shipment, ProgressStatus, ShipmentCreate, ShipmentSummary, ShipmentCreateSimple, User, ApprovalStatus
+from ..database.schemas.shipment import ProgressStatus, ShipmentCreate, ShipmentSummary, ApprovalStatus, ShipmentCreateSimple
+from ..database.models.shipment import Shipment
+from ..database.models.user import User
 
 class ShipmentService:
-    def __init__(self, session: AsyncSession, socket_service: SocketMessageService):
+    def __init__(self, session: AsyncSession, socket_service: SocketMessageService, email_service: EmailService, background_tasks: BackgroundTasks):
         self.session = session
         self.socket_service = socket_service
+        self.email_service = email_service
+        self.background_tasks = background_tasks
 
     async def get_all_shipments(self) -> list[ShipmentSummary]:
         result = await self.session.execute(select(Shipment))
@@ -32,7 +38,8 @@ class ShipmentService:
         shipments_list = shipments.scalars().all()
         return list(shipments_list)
 
-    async def create_shipment(self, shipment_data_simple: ShipmentCreateSimple, user_id: UUID) -> ShipmentSummary:
+    async def create_shipment(self, shipment_data_simple: ShipmentCreateSimple,
+                              user_id: UUID) -> ShipmentSummary:
         shipment_data: ShipmentCreate = await self.map_simple_to_create(shipment_data_simple, user_id)
         shipment_data_valid = self._validate_shipment_create(shipment_data)
         clean_data = shipment_data_valid.model_dump()
@@ -42,6 +49,12 @@ class ShipmentService:
         await self.session.refresh(shipment)
         shipment_summary: ShipmentSummary = ShipmentSummary.model_validate(shipment)
         await self.socket_service.add_pending_purchase_message(shipment.buyer_id, shipment_summary)
+        self.background_tasks.add_task(
+            self.email_service.send_shipment_created,
+            shipment_summary,
+            UserBase(**shipment.seller.model_dump()),
+            UserBase(**shipment.buyer.model_dump())
+        )
         return shipment_summary
 
     async def delete_shipment(self, shipment_id: UUID) -> None:
@@ -77,7 +90,7 @@ class ShipmentService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot update approval status to 'pending'"
             )
-        shipment = await self.session.get(Shipment, shipment_id)
+        shipment: Shipment | None = await self.session.get(Shipment, shipment_id)
 
         if not shipment:
             raise HTTPException(
@@ -91,6 +104,12 @@ class ShipmentService:
         await self.session.refresh(shipment)
         shipment_summary: ShipmentSummary = ShipmentSummary.model_validate(shipment)
         await self.socket_service.update_sale_message(shipment.seller_id, shipment_summary)
+        self.background_tasks.add_task(
+            self.email_service.send_modified_approval,
+            shipment_summary,
+            UserBase(**shipment.seller.model_dump()),
+            UserBase(**shipment.buyer.model_dump())
+        )
         return shipment_summary
 
     def _validate_shipment_create(self, shipment_data: ShipmentCreate) -> ShipmentCreate:

@@ -1,13 +1,17 @@
+from typing import Any
 from uuid import UUID
 
 from passlib.context import CryptContext
 from fastapi import status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, Select
 from sqlalchemy.orm import selectinload
 
 from ..utils.utils import generate_access_token
-from ..database.models import UserCreate, User, Shipment
+from ..database.models.user import User
+from ..database.models.shipment import Shipment
+from ..database.schemas.user import UserCreate
+
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -25,7 +29,7 @@ class UserService():
         user: User = User(
             **user_data.model_dump(exclude={"password"})
         )
-        find_by_email = select(User).where(User.email == user.email)
+        find_by_email: Select[Any] = select(User).where(User.email == user.email)
         find_by_username = select(User).where(User.username == user.username)
         if (await self.session.execute(find_by_email)).scalars().one_or_none() is not None:
             raise HTTPException(

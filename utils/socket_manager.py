@@ -22,7 +22,7 @@ class SocketConnectionManager:
             del self.connections[user_id]
 
     async def send_message(self, user_id: UUID, message: dict):
-        if self.connections[user_id]:
+        if self.connections.get(user_id):
             for websocket in self.connections[user_id]:
                 await websocket.send_json(message)
                 print(message, 'sent')

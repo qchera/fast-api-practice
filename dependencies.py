@@ -1,16 +1,18 @@
 from uuid import UUID
 
 from redis import asyncio as aioredis
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated, Optional
 
+from .services.email_service import email_service
 from .services.socket_message_service import socket_message_service
 from .utils.utils import decode_access_token
 from .services.redis_auth_service import RedisAuthService
 from .core import redis
-from .database.models import User, UserPlain
+from .database.schemas.user import UserPlain
+from .database.models.user import User
 from .core.security import oauth2_scheme
 from .database.session import get_session
 from .services.shipments_service import ShipmentService
@@ -53,8 +55,8 @@ async def get_logged_in_user(token_data: Annotated[dict, Depends(get_access_toke
         )
     return user
 
-def get_shipment_service(session: SessionDep) -> ShipmentService:
-    return ShipmentService(session, socket_message_service)
+def get_shipment_service(session: SessionDep, background_tasks: BackgroundTasks) -> ShipmentService:
+    return ShipmentService(session, socket_message_service, email_service, background_tasks)
 
 def get_user_service(session: SessionDep) -> UserService:
     return UserService(session)

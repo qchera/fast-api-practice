@@ -1,10 +1,10 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, status, HTTPException, Body
-from watchfiles import awatch
+from fastapi import APIRouter, status, HTTPException
 
-from ..database.models import Shipment, ShipmentSummary, ShipmentCreateSimple, ApprovalStatus
+from ..database.models.shipment import Shipment
+from ..database.schemas.shipment import ShipmentSummary, ShipmentCreateSimple, ShipmentStatusUpdate
 from ..dependencies import ShipmentServiceDep, UserDep
 
 router = APIRouter(prefix="/shipments", tags=["Shipments"])
@@ -42,8 +42,8 @@ async def create_shipment(current_user: UserDep,
 @router.patch("/{shipment_id}/approval", status_code=status.HTTP_200_OK, response_model=ShipmentSummary)
 async def update_shipment_approval_status(shipment_service: ShipmentServiceDep,
                                           shipment_id: UUID,
-                                          approval_status: ApprovalStatus = Body(embed=True)) -> ShipmentSummary:
-     return await shipment_service.update_shipment_approval_status(shipment_id, approval_status)
+                                          status_update: ShipmentStatusUpdate) -> ShipmentSummary:
+     return await shipment_service.update_shipment_approval_status(shipment_id, status_update.approval_status)
 
 '''
 @router.put("/{shipment_id}", response_model=Shipment)

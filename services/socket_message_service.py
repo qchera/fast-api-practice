@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi.encoders import jsonable_encoder
 
 from ..utils.socket_manager import socket_manager, SocketConnectionManager
-from ..database.models import ShipmentSummary
+from ..database.schemas.shipment import ShipmentSummary
 
 
 class SocketMessageService:
