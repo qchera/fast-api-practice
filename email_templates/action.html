@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<p>{{ main_message }}</p>
+
+<div class="btn-container" style="text-align: center; margin-top: 30px;">
+    <a href="{{ button_link }}" 
+       style="display: inline-block; background-color: #28a745; color: #ffffff; text-decoration: none; padding: 12px 25px; border-radius: 5px; font-weight: bold;">
+       {{ button_text }}
+    </a>
+</div>
+
+<p style="margin-top: 20px; font-size: 0.9em; color: #666;">
+    If the button above doesn't work, copy and paste this link into your browser:<br>
+    <a href="{{ button_link }}" style="color: #007bff; word-break: break-all;">{{ button_link }}</a>
+</p>
+{% endblock %}

@@ -58,8 +58,8 @@ async def get_logged_in_user(token_data: Annotated[dict, Depends(get_access_toke
 def get_shipment_service(session: SessionDep, background_tasks: BackgroundTasks) -> ShipmentService:
     return ShipmentService(session, socket_message_service, email_service, background_tasks)
 
-def get_user_service(session: SessionDep) -> UserService:
-    return UserService(session)
+def get_user_service(session: SessionDep, background_tasks: BackgroundTasks) -> UserService:
+    return UserService(session, email_service, background_tasks)
 
 ShipmentServiceDep = Annotated[ShipmentService, Depends(get_shipment_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]

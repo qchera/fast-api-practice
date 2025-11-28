@@ -41,12 +41,12 @@ async def decode_token(token: Annotated[str, Depends(oauth2_scheme)], users_serv
 async def logout(
     token_data: Annotated[dict, Depends(get_access_token_data)],
     redis_auth_service: Annotated[RedisAuthService, Depends(get_redis_auth_service)],
-):
+) -> None:
     await redis_auth_service.revoke_token(token_data)
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, token: str):
+async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
     user_id: UUID
     try:
         payload = decode_access_token(token)
@@ -64,3 +64,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 await socket_message_service.heartbeat(user_id)
     except WebSocketDisconnect:
         socket_manager.disconnect(websocket, user_id)
+
+@router.post("/verify-email")
+async def verify_email(token: str, users_service: UserServiceDep) -> None:
+    await users_service.verify_url_safe_token(token)
+
+@router.post("/resend-verification")
+async def resend_email_verification(id: UUID, user_service: UserServiceDep) -> None:
+    await user_service.resend_email_verification(id)

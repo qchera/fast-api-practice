@@ -50,7 +50,15 @@ class EmailNotificationSettings(BaseSettings):
 
     model_config = _base_config
 
+class AppSettings(BaseSettings):
+    APP_NAME: str
+    APP_SERVER_DOMAIN: str
+    APP_CLIENT_DOMAIN: str
+
+    model_config = _base_config
+
 db_settings = DatabaseSettings()
 security_settings = SecuritySettings()
 redis_settings = RedisSettings()
 email_notification_settings = EmailNotificationSettings()
+app_settings = AppSettings()

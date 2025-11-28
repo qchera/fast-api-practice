@@ -20,6 +20,7 @@ class User(SQLModel, table=True):
     username: str = Field(nullable=False, unique=True, index=True)
     full_name: str = Field(nullable=False)
     email: EmailStr = Field(nullable=False, unique=True, index=True)
+    email_verified: bool = Field(nullable=False, default=False)
     hashed_password: str = Field(nullable=False)
 
     purchases: List["Shipment"] = Relationship(

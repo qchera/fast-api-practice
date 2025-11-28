@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<p>{{ main_message|safe }}</p>
+
+{% if highlight_box %}
+<div class="highlight-box">
+    {{ highlight_box|safe }}
+</div>
+{% endif %}
+
+<h3>Shipment Details</h3>
+
+<div class="field">
+    <span class="label">Product:</span>
+    <span class="value" style="font-size: 1.1em;">{{ shipment.product }}</span>
+</div>
+
+<div class="field">
+    <span class="label">Shipment ID:</span>
+    <span class="value" style="font-family: monospace;">{{ shipment.id }}</span>
+</div>
+
+<div class="field">
+    <span class="label">Status:</span>
+    <span class="status-badge">{{ shipment.approval_status }}</span>
+</div>
+
+<div class="field">
+    <span class="label">{{ counterparty_label }}:</span>
+    <span class="value">{{ counterparty_info }}</span>
+</div>
+
+<div class="field">
+    <span class="label">Estimated Delivery:</span>
+    <span class="value">{{ delivery_date }}</span>
+</div>
+
+<div class="btn-container" style="text-align: center; margin-top: 30px;">
+    <a href="{{ base_url }}" 
+       style="display: inline-block; background-color: #28a745; color: #ffffff; text-decoration: none; padding: 12px 25px; border-radius: 5px; font-weight: bold;">
+       View Dashboard
+    </a>
+</div>
+{% endblock %}
