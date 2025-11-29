@@ -25,6 +25,10 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed_password: str) -> bool:
     return password_context.verify(password, hashed_password)
 
+async def get_one_or_none(select: Select, session: AsyncSession):
+    result = await session.execute(select)
+    return result.scalars().one_or_none()
+
 class UserService():
     def __init__(self, session: AsyncSession, email_service: EmailService, background_tasks: BackgroundTasks):
         self.session = session
@@ -37,12 +41,12 @@ class UserService():
         )
         find_by_email: Select[Any] = select(User).where(User.email == user.email)
         find_by_username: Select[Any] = select(User).where(User.username == user.username)
-        if (await self.session.execute(find_by_email)).scalars().one_or_none() is not None:
+        if await get_one_or_none(find_by_email, self.session) is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
-        if (await self.session.execute(find_by_username)).scalars().one_or_none() is not None:
+        if await get_one_or_none(find_by_username, self.session) is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already taken"
@@ -58,7 +62,7 @@ class UserService():
 
     async def token(self, login, password) -> str:
         find_by_email_or_username = select(User).where(or_(User.email == login, User.username == login))
-        user = (await self.session.execute(find_by_email_or_username)).scalars().one_or_none()
+        user = await get_one_or_none(find_by_email_or_username, self.session)
         print(user, login)
         if user is None:
             raise HTTPException(
@@ -107,7 +111,7 @@ class UserService():
 
     async def find_by_username(self, username: str) -> User:
         find_by_email = select(User).where(User.username == username)
-        user = (await self.session.execute(find_by_email)).scalars().one_or_none()
+        user = await get_one_or_none(find_by_email, self.session)
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
