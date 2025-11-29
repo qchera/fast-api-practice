@@ -1,8 +1,9 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status, Body
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import EmailStr
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from ..services.socket_message_service import socket_message_service
@@ -12,6 +13,8 @@ from ..dependencies import UserServiceDep, get_access_token_data, get_redis_auth
 from ..services.redis_auth_service import RedisAuthService
 from ..utils.socket_manager import socket_manager
 from ..utils.utils import decode_access_token
+from ..utils.exceptions import AppException
+from ..utils.errors import ErrorCode
 
 router = APIRouter(tags=["Users"])
 
@@ -31,7 +34,11 @@ async def login_for_access_token(
 async def decode_token(token: Annotated[str, Depends(oauth2_scheme)], users_service: UserServiceDep) -> UserRead:
     data = decode_access_token(token)
     if data is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise AppException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code=ErrorCode.TOKEN_INVALID,
+            message="Invalid token"
+        )
     user = await users_service.find_by_id(data["user"]["id"])
     user_read = UserRead.model_validate(user)
     return user_read
@@ -69,6 +76,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
 async def verify_email(token: str, users_service: UserServiceDep) -> None:
     await users_service.verify_url_safe_token(token)
 
+
 @router.post("/resend-verification")
-async def resend_email_verification(id: UUID, user_service: UserServiceDep) -> None:
-    await user_service.resend_email_verification(id)
+async def resend_email_verification(token: str, user_service: UserServiceDep) -> None:
+    await user_service.resend_email_verification(token=token)
+
+
+@router.post("/resend-verification-by-email")
+async def resend_email_verification(user_service: UserServiceDep, email: EmailStr = Body(embed=True)) -> None:
+    await user_service.resend_email_verification(email=email)

@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
-
 import jwt
-from fastapi import HTTPException, status
+from fastapi import status
 from redis import asyncio as aioredis
-
+from ..utils.exceptions import AppException
+from ..utils.errors import ErrorCode
 
 class RedisAuthService:
     def __init__(self, redis: aioredis.Redis):
@@ -16,9 +16,10 @@ class RedisAuthService:
         try:
             expiry_timestamp = token_data.get("exp")
             if expiry_timestamp is None:
-                raise HTTPException(
+                raise AppException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Token does not have an expiry"
+                    code=ErrorCode.TOKEN_MISSING_EXP,
+                    message="Token does not have an expiry"
                 )
             expiry_datetime = datetime.fromtimestamp(expiry_timestamp, tz=timezone.utc)
             now_datetime = datetime.now(timezone.utc)
@@ -26,7 +27,8 @@ class RedisAuthService:
             if expiry_seconds > 0:
                 await self.redis.setex(token_data["jti"], expiry_seconds, "revoked")
         except jwt.PyJWTError:
-            raise HTTPException(
+            raise AppException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Impossible to revoke token"
+                code=ErrorCode.TOKEN_REVOKE_FAILED,
+                message="Impossible to revoke token"
             )

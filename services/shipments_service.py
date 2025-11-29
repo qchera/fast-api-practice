@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List
 from uuid import UUID
 
-from fastapi import HTTPException, status, BackgroundTasks
+from fastapi import status, BackgroundTasks
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,9 +12,13 @@ from .socket_message_service import SocketMessageService
 from ..database.schemas.shipment import ProgressStatus, ShipmentCreate, ShipmentSummary, ApprovalStatus, ShipmentCreateSimple
 from ..database.models.shipment import Shipment
 from ..database.models.user import User
+from ..utils.exceptions import AppException
+from ..utils.errors import ErrorCode
+
 
 class ShipmentService:
-    def __init__(self, session: AsyncSession, socket_service: SocketMessageService, email_service: EmailService, background_tasks: BackgroundTasks):
+    def __init__(self, session: AsyncSession, socket_service: SocketMessageService, email_service: EmailService,
+                 background_tasks: BackgroundTasks):
         self.session = session
         self.socket_service = socket_service
         self.email_service = email_service
@@ -24,13 +28,22 @@ class ShipmentService:
         result = await self.session.execute(select(Shipment))
         shipments = result.scalars().all()
         if not shipments:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There are no shipments found")
+            raise AppException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                code=ErrorCode.SHIPMENT_NOT_FOUND,
+                message="There are no shipments found"
+            )
         return [ShipmentSummary.model_validate(shipment) for shipment in shipments]
 
     async def get_shipment_by_id(self, shipment_id: UUID) -> Shipment:
         shipment: Shipment | None = await self.session.get(Shipment, shipment_id)
         if not shipment:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Shipment id {shipment_id} does not exist")
+            raise AppException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                code=ErrorCode.SHIPMENT_NOT_FOUND,
+                message=f"Shipment id {shipment_id} does not exist",
+                meta={"shipment_id": str(shipment_id)}
+            )
         return shipment
 
     async def get_shipments_by_user_id(self, user_id) -> List[Shipment]:
@@ -62,40 +75,22 @@ class ShipmentService:
         await self.session.delete(shipment)
         await self.session.commit()
 
-    '''
-        async def update_shipment(
-            self, shipment_id: UUID, shipment_update: ShipmentSummary
-        ) -> Shipment:
-            update_data = shipment_update.model_dump(exclude_unset=True)
-            if not update_data:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Shipment data is invalid or empty"
-                )
-    
-            shipment = await self.get_shipment_by_id(shipment_id)
-    
-            shipment.sqlmodel_update(update_data)
-            self.session.add(shipment)
-            await self.session.commit()
-            await self.session.refresh(shipment)
-            return shipment
-    '''
-
     async def update_shipment_approval_status(self,
                                               shipment_id: UUID,
                                               approval_status: ApprovalStatus) -> ShipmentSummary:
         if approval_status == ApprovalStatus.PENDING:
-            raise HTTPException(
+            raise AppException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot update approval status to 'pending'"
+                code=ErrorCode.SHIPMENT_INVALID_STATUS_UPDATE,
+                message="Cannot update approval status to 'pending'"
             )
         shipment: Shipment | None = await self.session.get(Shipment, shipment_id)
 
         if not shipment:
-            raise HTTPException(
+            raise AppException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Shipment with id '{shipment_id}' not found"
+                code=ErrorCode.SHIPMENT_NOT_FOUND,
+                message=f"Shipment with id '{shipment_id}' not found"
             )
 
         shipment.approval_status = approval_status
@@ -117,19 +112,22 @@ class ShipmentService:
         delivery_progress: str = valid_shipment.get("progress")
         estimated_delivery = valid_shipment.get("estimated_delivery")
         current_time = datetime.now(timezone.utc)
+
         if (delivery_progress == ProgressStatus.SHIPPED and
                 (estimated_delivery is None or
-                estimated_delivery > current_time)):
-            raise HTTPException(
+                 estimated_delivery > current_time)):
+            raise AppException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Estimated delivery date must be in the past for shipped shipments"
+                code=ErrorCode.SHIPMENT_INVALID_DATE,
+                message="Estimated delivery date must be in the past for shipped shipments"
             )
         elif ((delivery_progress == ProgressStatus.PLACED or
                delivery_progress == ProgressStatus.IN_TRANSIT) and
-               estimated_delivery is not None and estimated_delivery <= current_time):
-            raise HTTPException(
+              estimated_delivery is not None and estimated_delivery <= current_time):
+            raise AppException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Estimated delivery date must be in the future for placed or in transit shipments"
+                code=ErrorCode.SHIPMENT_INVALID_DATE,
+                message="Estimated delivery date must be in the future for placed or in transit shipments"
             )
 
         return ShipmentCreate.model_validate(valid_shipment)
@@ -147,8 +145,10 @@ class ShipmentService:
         find_by_username = select(User.id).where(User.username == username)
         id = (await self.session.execute(find_by_username)).scalars().one_or_none()
         if id is None:
-            raise HTTPException(
+            raise AppException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with username: '{username}' not found"
+                code=ErrorCode.USER_NOT_FOUND,
+                message=f"User with username: '{username}' not found",
+                meta={"username": username}
             )
         return id

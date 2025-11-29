@@ -1,13 +1,14 @@
-import json
 import uuid
 from datetime import timedelta, datetime, timezone
 
-from fastapi import HTTPException, status
+from fastapi import status
 
 import jwt
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 
 from ..config import security_settings
+from .exceptions import AppException
+from .errors import ErrorCode
 
 
 _serializer = URLSafeTimedSerializer(security_settings.JWT_SECRET)
@@ -36,14 +37,16 @@ def decode_access_token(token: str) -> dict:
         )
         return token_data
     except jwt.ExpiredSignatureError:
-        raise HTTPException(
+        raise AppException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired"
+            code=ErrorCode.TOKEN_EXPIRED,
+            message="Token has expired"
         )
     except jwt.PyJWTError:
-        raise HTTPException(
+        raise AppException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
+            code=ErrorCode.TOKEN_INVALID,
+            message="Invalid token"
         )
 
 def generate_url_safe_token(data: dict) -> str:
@@ -56,16 +59,17 @@ def decode_url_safe_token(token: str, expiry: timedelta | None = None) -> dict |
         return token_data
     except SignatureExpired as e:
         expired_data: dict = _serializer.load_payload(e.payload)
-        print(expired_data)
-        raise HTTPException(
+        raise AppException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"msg": "Token has expired", "userId": expired_data.get('id')}
+            code=ErrorCode.TOKEN_EXPIRED,
+            message="Token has expired",
+            meta={"user_id": expired_data.get('id'), "email": expired_data.get('email')}
         )
     except BadSignature:
-        print('Token invalid')
-        raise HTTPException(
+        raise AppException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
+            code=ErrorCode.TOKEN_INVALID,
+            message="Invalid token"
         )
     except Exception:
         return None
