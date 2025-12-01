@@ -1,4 +1,4 @@
-from pydantic import ConfigDict
+from pydantic import ConfigDict, BaseModel, Field
 from pydantic.alias_generators import to_camel
 from sqlmodel import SQLModel
 
@@ -8,3 +8,7 @@ class CamelModel(SQLModel):
         populate_by_name=True,
         from_attributes=True
     )
+
+class PasswordResetModel(CamelModel):
+    token: str
+    new_password: str

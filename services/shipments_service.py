@@ -6,6 +6,7 @@ from fastapi import status, BackgroundTasks
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..celery_module.worker import send_modified_approval_email_task, send_shipment_created_email_task
 from ..database.schemas.user import UserBase
 from .email_service import EmailService
 from .socket_message_service import SocketMessageService
@@ -62,11 +63,10 @@ class ShipmentService:
         await self.session.refresh(shipment)
         shipment_summary: ShipmentSummary = ShipmentSummary.model_validate(shipment)
         await self.socket_service.add_pending_purchase_message(shipment.buyer_id, shipment_summary)
-        self.background_tasks.add_task(
-            self.email_service.send_shipment_created,
-            shipment_summary,
-            UserBase(**shipment.seller.model_dump()),
-            UserBase(**shipment.buyer.model_dump())
+        send_shipment_created_email_task.delay(
+            shipment_summary.model_dump(),
+            shipment.seller.model_dump(),
+            shipment.buyer.model_dump()
         )
         return shipment_summary
 
@@ -99,11 +99,10 @@ class ShipmentService:
         await self.session.refresh(shipment)
         shipment_summary: ShipmentSummary = ShipmentSummary.model_validate(shipment)
         await self.socket_service.update_sale_message(shipment.seller_id, shipment_summary)
-        self.background_tasks.add_task(
-            self.email_service.send_modified_approval,
-            shipment_summary,
-            UserBase(**shipment.seller.model_dump()),
-            UserBase(**shipment.buyer.model_dump())
+        send_modified_approval_email_task.delay(
+            shipment_summary.model_dump(),
+            shipment.seller.model_dump(),
+            shipment.buyer.model_dump()
         )
         return shipment_summary
 

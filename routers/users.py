@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from ..database.schemas.common import PasswordResetModel
 from ..services.socket_message_service import socket_message_service
 from ..core.security import oauth2_scheme
 from ..database.schemas.user import UserCreate, UserRead
@@ -85,3 +86,12 @@ async def resend_email_verification(token: str, user_service: UserServiceDep) ->
 @router.post("/resend-verification-by-email")
 async def resend_email_verification(user_service: UserServiceDep, email: EmailStr = Body(embed=True)) -> None:
     await user_service.resend_email_verification(email=email)
+
+
+@router.post("/request-reset-password")
+async def request_reset_password(user_service: UserServiceDep, email: EmailStr = Body(embed=True)) -> None:
+    await user_service.send_password_reset(email=email)
+
+@router.post("/reset-password")
+async def reset_password(user_service: UserServiceDep, password_reset: PasswordResetModel) -> None:
+    await user_service.reset_password(token=password_reset.token, new_pass=password_reset.new_password)

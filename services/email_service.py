@@ -39,7 +39,7 @@ class EmailService:
             body=email_body
         )
 
-    async def send_modified_approval(self, shipment: ShipmentSummary, seller: UserBase, buyer: UserBase) -> None:
+    async def send_modified_approval_email(self, shipment: ShipmentSummary, seller: UserBase, buyer: UserBase) -> None:
         buyer_info = f"{buyer.username} ({buyer.email})"
         seller_info = f"{seller.username} ({seller.email})"
         delivery_date = shipment.estimated_delivery.strftime("%Y-%m-%d %H:%M") if shipment.estimated_delivery else "N/A"
@@ -71,7 +71,7 @@ class EmailService:
         await self.manager.send_html_email([seller_email], subject=f"Shipment Update: {shipment.product}", body=seller_body)
         await self.manager.send_html_email([buyer_email], subject=f"Order Update: {shipment.product}", body=buyer_body)
 
-    async def send_shipment_created(self, shipment: ShipmentSummary, seller: UserBase, buyer: UserBase) -> None:
+    async def send_shipment_created_email(self, shipment: ShipmentSummary, seller: UserBase, buyer: UserBase) -> None:
         buyer_info = f"{buyer.username} ({buyer.email})"
         seller_info = f"{seller.username} ({seller.email})"
         delivery_date = shipment.estimated_delivery.strftime("%Y-%m-%d %H:%M") if shipment.estimated_delivery else "N/A"
@@ -102,5 +102,28 @@ class EmailService:
 
         await self.manager.send_html_email([buyer_email], subject=f"Action Required: {shipment.product}", body=buyer_body)
         await self.manager.send_html_email([seller_email], subject=f"Shipment Created: {shipment.product}", body=seller_body)
+
+    async def send_password_reset_email(self, user: UserBase, token: str) -> None:
+        reset_link = f"{self.protocol}{self.base_url}/reset-password?token={token}"
+
+        user_email = NameEmail(user.full_name, str(user.email))
+
+        email_body = self._render_template("action.html", {
+            "title": "Reset Your Password",
+            "recipient_name": user.full_name,
+            "main_message": (
+                "We received a request to reset your new_password for your FastShip account. "
+                "If you didn't make this request, you can safely ignore this email. "
+                "Otherwise, click the button below to create a new new_password."
+            ),
+            "button_text": "Reset Password",
+            "button_link": reset_link
+        })
+
+        await self.manager.send_html_email(
+            [user_email],
+            subject="FastShip - Password Reset Request",
+            body=email_body
+        )
 
 email_service = EmailService()

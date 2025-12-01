@@ -32,9 +32,8 @@ class RedisSettings(BaseSettings):
 
     model_config = _base_config
 
-    @property
-    def REDIS_URL(self) -> str:
-        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+    def REDIS_URL(self, db: int | None = None) -> str:
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{db if db is not None else self.REDIS_DB}"
 
 class EmailNotificationSettings(BaseSettings):
     MAIL_USERNAME: str

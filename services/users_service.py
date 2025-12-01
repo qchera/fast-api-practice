@@ -2,7 +2,6 @@ from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
-import jwt
 from itsdangerous import SignatureExpired
 from passlib.context import CryptContext
 from fastapi import status, BackgroundTasks
@@ -11,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, Select
 from sqlalchemy.orm import selectinload
 
+from ..celery_module.worker import send_verification_email_task
+from ..celery_module.worker import send_password_reset_email_task
 from ..utils.utils import decode_url_safe_token, generate_url_safe_token, generate_access_token
 from .email_service import EmailService
 from ..database.models.user import User
@@ -43,7 +44,7 @@ class UserService():
 
     async def register_user(self, user_data: UserCreate) -> str:
         user: User = User(
-            **user_data.model_dump(exclude={"password"})
+            **user_data.model_dump(exclude={"new_password"})
         )
         find_by_email: Select[Any] = select(User).where(User.email == user.email)
         find_by_username: Select[Any] = select(User).where(User.username == user.username)
@@ -78,8 +79,8 @@ class UserService():
         if user is None:
             raise AppException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                code=ErrorCode.WRONG_CREDENTIALS,
-                message="Wrong credentials"
+                code=ErrorCode.WRONG_LOGIN,
+                message="No user associated with given email or username"
             )
 
         if not user.email_verified:
@@ -93,8 +94,9 @@ class UserService():
         if not verify_password(password, user.hashed_password):
             raise AppException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                code=ErrorCode.WRONG_CREDENTIALS,
-                message="Incorrect password"
+                code=ErrorCode.WRONG_PASSWORD,
+                message="Wrong password",
+                meta={"email": user.email}
             )
 
         token = generate_access_token(
@@ -230,12 +232,29 @@ class UserService():
             )
         self._send_email_verification(UserPlain(**user.model_dump()))
 
+    async def send_password_reset(self, *, email: EmailStr) -> None:
+        user: User | None = await self.find_by_email(email)
+        token = generate_url_safe_token({
+            'email': user.email,
+        }, salt="password-reset-token")
+        send_password_reset_email_task.delay(
+            user.model_dump(),
+            token
+        )
+
+    async def reset_password(self, *, token: str, new_pass: str) -> None:
+        data: dict | None = decode_url_safe_token(token, timedelta(minutes=10), salt="password-reset-token")
+        user: User = await self.find_by_email(data['email'])
+        user.hashed_password = hash_password(new_pass)
+        self.session.add(user)
+        await self.session.commit()
+
     def _send_email_verification(self, user: UserPlain):
         token = generate_url_safe_token({
             "email": user.email,
             "id": str(user.id),
         })
-        self.background_tasks.add_task(
-            self.email_service.send_verification_email,
-            UserBase(**user.model_dump()),
-            token)
+        send_verification_email_task.delay(
+            user.model_dump(),
+            token
+        )

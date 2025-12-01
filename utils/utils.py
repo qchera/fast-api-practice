@@ -39,23 +39,24 @@ def decode_access_token(token: str) -> dict:
     except jwt.ExpiredSignatureError:
         raise AppException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            code=ErrorCode.TOKEN_EXPIRED,
+            code=ErrorCode.ACCESS_TOKEN_EXPIRED,
             message="Token has expired"
         )
     except jwt.PyJWTError:
         raise AppException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            code=ErrorCode.TOKEN_INVALID,
+            code=ErrorCode.ACCESS_TOKEN_INVALID,
             message="Invalid token"
         )
 
-def generate_url_safe_token(data: dict) -> str:
-    return _serializer.dumps(data)
+def generate_url_safe_token(data: dict, salt: str | None = None) -> str:
+    return _serializer.dumps(data, salt=salt)
 
-def decode_url_safe_token(token: str, expiry: timedelta | None = None) -> dict | None:
+def decode_url_safe_token(token: str, expiry: timedelta | None = None, salt: str | None = None) -> dict | None:
     try:
         token_data: dict = _serializer.loads(token,
-                                             max_age=int(expiry.total_seconds()) if expiry else None)
+                                             max_age=int(expiry.total_seconds()) if expiry else None,
+                                             salt=salt)
         return token_data
     except SignatureExpired as e:
         expired_data: dict = _serializer.load_payload(e.payload)
