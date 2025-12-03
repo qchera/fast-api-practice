@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from utils.exceptions import add_exception_handlers
 from .core.redis import init_redis, close_redis
 from .routers.master_router import master_router
 from .database.session import create_tables
@@ -18,6 +19,8 @@ async def lifespan(app: FastAPI):
     await close_redis()
 
 app = FastAPI(lifespan = lifespan)
+
+add_exception_handlers(app)
 
 origins = [
     "http://localhost:5173",

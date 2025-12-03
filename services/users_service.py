@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Any
 from uuid import UUID
 
@@ -53,13 +53,15 @@ class UserService():
             raise AppException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 code=ErrorCode.EMAIL_TAKEN,
-                message="Email already registered"
+                message="Email already registered",
+                meta={"email": user.email},
             )
         if await get_one_or_none(find_by_username, self.session) is not None:
             raise AppException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 code=ErrorCode.USERNAME_TAKEN,
-                message="Username already taken"
+                message="Username already taken",
+                meta={"username": user.username},
             )
 
         user.hashed_password = hash_password(user_data.password)
@@ -80,7 +82,8 @@ class UserService():
             raise AppException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 code=ErrorCode.WRONG_LOGIN,
-                message="No user associated with given email or username"
+                message="No user associated with given email or username",
+                meta={"login": login},
             )
 
         if not user.email_verified:
@@ -88,7 +91,7 @@ class UserService():
                 status_code=status.HTTP_403_FORBIDDEN,
                 code=ErrorCode.EMAIL_NOT_VERIFIED,
                 message="Verify your email before logging in",
-                meta={"email": user.email}
+                meta={"email": user.email},
             )
 
         if not verify_password(password, user.hashed_password):
@@ -96,7 +99,7 @@ class UserService():
                 status_code=status.HTTP_404_NOT_FOUND,
                 code=ErrorCode.WRONG_PASSWORD,
                 message="Wrong password",
-                meta={"email": user.email}
+                meta={"email": user.email},
             )
 
         token = generate_access_token(
